@@ -1,7 +1,18 @@
-//# The number of registration desks that are available.
-int REGISTRATION_SIZE = 10;
+#include<pthread.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<stdio.h>
+#include<string.h>
+#include<semaphore.h>
+
+#define THREAD_COUNT 2
+
+sem_t semRegistration;
+
 //# The number of restrooms that are available.
 int RESTROOM_SIZE = 10;
+//# The number of registration desks that are available.
+int REGISTRATION_SIZE = 10;
 //# The number of cashiers in cafe that are available.
 int CAFE_NUMBER = 10;
 //# The number of General Practitioner that are available.

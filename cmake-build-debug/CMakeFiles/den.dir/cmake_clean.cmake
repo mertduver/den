@@ -1,7 +1,9 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/den.dir/main.c.o"
-  "den"
+  "CMakeFiles/den.dir/main.c.obj"
+  "den.exe"
+  "den.exe.manifest"
   "den.pdb"
+  "libden.dll.a"
 )
 
 # Per-language clean rules from dependency scanning.
