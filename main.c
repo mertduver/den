@@ -7,7 +7,6 @@
 #include<time.h>
 
 
-#define THREAD_COUNT 20
 #define randnum(min, max) ((rand() % (int) (((max) + 1) - (min))) + (min))
 //usage: randnum(min int, max int));
 
@@ -28,6 +27,7 @@ sem_t semPharmacy;
 sem_t semBlood;
 sem_t semOR;
 sem_t semNurse;
+
 
 //# The number of restrooms that are available.
 int RESTROOM_SIZE = 10;
@@ -80,22 +80,22 @@ int RESTROOM_INCREASE_RATE = 10;
 void *patient(void *arg)
 {
     struct patientStruct* p= (struct patientStruct*) arg;
-    printf("id:%d",p->id);
-    printf("hungerMeter:%d",p->hungerMeter);
+//    printf("id:%d",p->id);
+//    printf("hungerMeter:%d",p->hungerMeter);
 
     sem_wait(&semRegistration);
-    printf("patient%s Entered the registration office\n",p->id);
+    printf("patient%d Entered the registration office\n",p->id);
     sleep(randnum(1,REGISTRATION_TIME/10));
-    sem_post(semRegistration);
+    sem_post(&semRegistration);
 
-    sem_wait(semGP);
-    printf("patient%s Entered the GP\n",p->id);
+    sem_wait(&semGP);
+    printf("patient%d Entered the GP\n",p->id);
     sleep(randnum(1,GP_TIME/10));
     sem_post(&semGP);
 }
 
 
-int main()
+int main(void)
 {
 
     srand(time(NULL));
@@ -105,17 +105,17 @@ int main()
     int err;
     int value;
 
-    sem_init(&semRegistration, 0, REGISTRATION_SIZE);
-    sem_init(&semGP, 0, GP_NUMBER);
-
-    struct patientStruct *patients[PATIENT_NUMBER];
+    sem_init(&semRegistration, 1, REGISTRATION_SIZE);
+    sem_init(&semGP, 1, GP_NUMBER);
+    struct patientStruct *patients=(struct patientStruct*) malloc(PATIENT_NUMBER* sizeof(struct patientStruct));
+    pthread_t *threads;
 
     for (int i = 0; i < PATIENT_NUMBER; ++i) {
-        patients[i]->id=i;
-        patients[i]->disease= randnum(0,1);
-        patients[i]->hungerMeter= randnum(1,100);
-        patients[i]->restroomMeter= randnum(1,100);
-        err=pthread_create(i,NULL,patient,(void *)patients[i]);
+        patients[i].id=i;
+        patients[i].disease= randnum(0,1);
+        patients[i].hungerMeter= randnum(1,100);
+        patients[i].restroomMeter= randnum(1,100);
+        err=pthread_create(threads+i,NULL,patient,(void *)&patients[i]);
         if (err != 0)
             printf("Thread creation error: [%s]",
                    strerror(err));
@@ -123,7 +123,7 @@ int main()
 
 
     for (int i = 0; i < PATIENT_NUMBER; ++i) {
-        pthread_join(patients[i],NULL);
+        pthread_join(*(threads+i),NULL);
     }
 
     sem_getvalue(&semRegistration, &value);
