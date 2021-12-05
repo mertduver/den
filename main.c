@@ -14,16 +14,20 @@
 
 struct patientStruct {
     int id;
-    int disease;//0:medicine, 1:surgery
+    int disease;//0:medicine, 1:blood lab, 2:surgery
     float bill;
     int hungerMeter;
     int restroomMeter;
 };
 
-sem_t semRegistration;
 sem_t semRestroom;
+sem_t semRegistration;
 sem_t semCafe;
 sem_t semGP;
+sem_t semPharmacy;
+sem_t semBlood;
+sem_t semOR;
+sem_t semNurse;
 
 //# The number of restrooms that are available.
 int RESTROOM_SIZE = 10;
