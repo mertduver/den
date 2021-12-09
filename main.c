@@ -1,3 +1,12 @@
+//printf("my notes:\n"
+//"- i have left some extra comment lines that helps me while iam working so you can see how i was thinking.\n"
+//"- the entered and left messages are function based because i wanted to see it while debugging. and left them as they are.\n"
+//"- if we want of course its easy to change location of a print statement.\n"
+//"- the app will start in 5 secs...");
+//sleep(5);
+
+
+
 #include<pthread.h>
 #include<stdlib.h>
 #include<unistd.h>
@@ -234,12 +243,6 @@ void *patient(void *arg) {
 
 
 int main(void) {
-    printf("my notes:\n"
-           "- i have left some extra comment lines that helps me while iam working so you can see how i was thinking.\n"
-           "- the entered and left messages are function based because i wanted to see it while debugging. and left them as they are.\n"
-           "- if we want of course its easy to change location of a print statement.\n"
-           "- the app will start in 5 secs...");
-    sleep(5);
 
     //I used forks while testing the app. they are not related/necessary with this app.
 //    for (int i = 0; i < 100; ++i) {
