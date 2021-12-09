@@ -7,18 +7,16 @@
 #include<time.h>
 
 
-#define randnum(max) ((rand() % (int) (((max) + 1) - (1))) + (1))
+#define randnum(max) ((rand() % (int) ((max))) + (1))
 //usage: randnum(max int));
 
 
 struct patientStruct {
     int id;
     int disease;//0:nothing, 1:medicine, 2:blood lab, 3:surgery
-    float bill;
     int hungerMeter;
     int restroomMeter;
 };
-
 
 
 pthread_mutex_t walletLock;
@@ -82,43 +80,43 @@ int CAFE_COST = 200; // Calculated randomly between 1 and given value.
 int HUNGER_INCREASE_RATE = 10;
 int RESTROOM_INCREASE_RATE = 10;
 
-int HUNGER_LIMIT=100;
-int REST_LIMIT=100;
+int HUNGER_LIMIT = 100;
+int REST_LIMIT = 100;
 
 
-void sleepByMiliseconds(int t){
-//    for (int i = 0; i < 100; ++i) {
-//    }
-    sleep(t/1000);
+void sleepByMiliseconds(int t) {
+    //sleep(t / 1000);
+    usleep(t*1000);
 }
 
-void walletIncomeUpdate(int cost){
+void walletIncomeUpdate(int cost) {
     //todo use mutexes
     pthread_mutex_lock(&walletLock);
-    HOSPITAL_WALLET+=cost;
+    HOSPITAL_WALLET += cost;
     pthread_mutex_unlock(&walletLock);
 
 }
 
 
-
-
-void hungerAndRestOperations(struct patientStruct p){
-    sleepByMiliseconds(randnum(WAIT_TIME));
-    p.hungerMeter+= randnum(HUNGER_INCREASE_RATE);
-    p.restroomMeter+= randnum(RESTROOM_INCREASE_RATE);
-    if(p.restroomMeter>=REST_LIMIT){
+void hungerAndRestOperations(struct patientStruct p) {
+    printf("patient%d has arrived to hungerAndRestOperations\n", p.id);
+//    sleepByMiliseconds(randnum(WAIT_TIME));
+    p.hungerMeter += randnum(HUNGER_INCREASE_RATE);
+    p.restroomMeter += randnum(RESTROOM_INCREASE_RATE);
+    if (p.restroomMeter >= REST_LIMIT) {
         sem_wait(&semRestroom);
+        printf("patient%d entered to restroom\n", p.id);
         sleepByMiliseconds(randnum(RESTROOM_TIME));
         sem_post(&semRestroom);
-        p.restroomMeter=1;
+        p.restroomMeter = 1;
     }
-    if(p.hungerMeter>=HUNGER_LIMIT){
+    if (p.hungerMeter >= HUNGER_LIMIT) {
         sem_wait(&semCafe);
+        printf("patient%d entered to cafe\n", p.id);
         sleepByMiliseconds(randnum(CAFE_TIME));
-        sem_post(&semCafe);
         walletIncomeUpdate(randnum(CAFE_COST));
-        p.hungerMeter=1;
+        sem_post(&semCafe);
+        p.hungerMeter = 1;
     }
 }
 
@@ -136,70 +134,93 @@ void surgery(struct patientStruct p){
 
 }
 
-void afterGP(struct patientStruct p){
+void gp(struct patientStruct p) {
+    //GP
+    printf("patient%d has arrived to gp\n", p.id);
+    int val;
+    sem_wait(&semGP);
+    sem_getvalue(&semGP, &val);
+    printf("gp val:%d ---------------------------------------------------\n", val);
+    printf("patient%d entered to GP\n", p.id);
+    if (p.disease ==
+        0) {//if disease is zero then the patient is coming to the gp for the first time so a disease should be assigned to her/him.
+        p.disease = randnum(3);
+        printf("patient%d assigned to disease%d by GP\n", p.id, p.disease);
+    } else {//else (s)he is already coming from another operation, and we will give medicine or not. just 2 possibilities.
+        p.disease = (randnum(2) - 1);
+        printf("patient%d reassigned to disease%d by GP\n", p.id, p.disease);
+    }
+    printf("done\n");
+    sleepByMiliseconds(randnum(GP_TIME));
+    sem_post(&semGP);
+    hungerAndRestOperations(p);
+    printf("patient%d has exited from gp\n", p.id);
+    afterGP(p);
+
+}
+
+void afterGP(struct patientStruct p) {
+    printf("patient%d has arrived to afterGP\n", p.id);
     //medicine
-    if(p.disease==1){
+    if (p.disease == 1) {
         sem_wait(&semPharmacy);
-        printf("patient%d entered to pharmacy\n",p.id);
+        printf("patient%d entered to pharmacy\n", p.id);
         sleepByMiliseconds(randnum(PHARMACY_TIME));
         sem_post(&semPharmacy);
         walletIncomeUpdate(randnum(PHARMACY_COST));
     }//blood lab
-    else if(p.disease==2){
+    else if (p.disease == 2) {
         sem_wait(&semBlood);
-        printf("patient%d entered to blood lab\n",p.id);
+        printf("patient%d entered to blood lab\n", p.id);
         sleepByMiliseconds(randnum(BLOOD_LAB_TIME));
         sem_post(&semBlood);
         walletIncomeUpdate(BLOOD_LAB_COST);//recalculated to a static random value at main
-        p.disease= (randnum(2)-1);
         gp(p);
-        afterGP(p);//patient needs to check if (s)he needs to buy medicine or not
     }//surgery
-    else if(p.disease==3){
+    else if (p.disease == 3) {
         surgery(p);
     }
     hungerAndRestOperations(p);
 }
 
 
-void *patient(void *arg)
-{
+void *patient(void *arg) {
     //getting and casting the patient
-    struct patientStruct* p= (struct patientStruct*) arg;
+    struct patientStruct *p = (struct patientStruct *) arg;
+    printf("patient%d has arrived to registration office\n", p->id);
 
     //registration
     sem_wait(&semRegistration);
-    printf("patient%d entered to registration office\n",p->id);
+    printf("patient%d entered to registration office\n", p->id);
     sleepByMiliseconds(randnum(REGISTRATION_TIME));
-    sem_post(&semRegistration);
     walletIncomeUpdate(REGISTRATION_COST);//recalculated to a static random value at main
+    sem_post(&semRegistration);
     hungerAndRestOperations(*p);
-
+    printf("patient%d has exited to registration office\n", p->id);
     gp(*p);
-    afterGP(*p);
-
-
-
-
 
 }
 
 
+int main(void) {
 
-int main(void)
-{
-
+//    for (int i = 0; i < 100; ++i) {
+//        fork();
+//    }
+//    fork();
+//    fork();
+//    fork();
+//    fork();
     //initializing srand for random number function
     srand(time(NULL));
     //usage: randnum(max int));
 
     //static costs calculations
-    int regCost= randnum(REGISTRATION_COST);
-    REGISTRATION_COST=regCost;
-    int bloodLabCost= randnum(BLOOD_LAB_COST);
-    BLOOD_LAB_COST=bloodLabCost;
+    int regCost = randnum(REGISTRATION_COST);
+    REGISTRATION_COST = regCost;
+    int bloodLabCost = randnum(BLOOD_LAB_COST);
+    BLOOD_LAB_COST = bloodLabCost;
 
-    int err;
     int value;
 
     //semaphore initializations
@@ -214,24 +235,28 @@ int main(void)
     sem_init(&semSurgeon, 0, SURGEON_NUMBER);
 
     //patient array
-    struct patientStruct *patients=(struct patientStruct*) malloc(PATIENT_NUMBER* sizeof(struct patientStruct));
-    pthread_t *threads;
+    struct patientStruct *patients = (struct patientStruct *) malloc(PATIENT_NUMBER * sizeof(struct patientStruct));
+    //struct patientStruct patients[PATIENT_NUMBER] = (struct patientStruct[PATIENT_NUMBER]) malloc(PATIENT_NUMBER * sizeof(struct patientStruct));
+    //struct patientStruct patients[PATIENT_NUMBER];
+    pthread_t threads[PATIENT_NUMBER];
 
     //thread creations
     for (int i = 0; i < PATIENT_NUMBER; ++i) {
-        patients[i].id=i;
-        patients[i].disease= randnum(3);
-        patients[i].hungerMeter= randnum(100);
-        patients[i].restroomMeter= randnum(100);
-        err=pthread_create(threads+i,NULL,patient,(void *)&patients[i]);
-        if (err != 0)
-            printf("\nThread creation error: [%s]\n",strerror(err));
+        sleepByMiliseconds(randnum(WAIT_TIME));
+        patients[i].id = i;
+        patients[i].disease = 0;
+        patients[i].hungerMeter = randnum(REST_LIMIT);
+        patients[i].restroomMeter = randnum(REST_LIMIT);
+        if (pthread_create(threads + i, NULL, patient, (void *) &patients[i]) != 0)
+            printf("\nFailed Thread Creation\n");
     }
 
 
     //thread joins
     for (int i = 0; i < PATIENT_NUMBER; ++i) {
-        pthread_join(*(threads+i),NULL);
+        if (pthread_join(*(threads + i), NULL) != 0) {
+            printf("\nFailed Thread Join\n");
+        }
     }
 
     //final value
@@ -247,7 +272,7 @@ int main(void)
     sem_destroy(&semBlood);
     sem_destroy(&semOR);
     sem_destroy(&semNurse);
-
+    sem_destroy(&semSurgeon);
     return 0;
 }
 
