@@ -20,6 +20,8 @@ struct patientStruct {
 
 
 pthread_mutex_t walletLock;
+pthread_mutex_t nurseLock;
+pthread_mutex_t surgeonLock;
 
 sem_t semRestroom;
 sem_t semRegistration;
@@ -83,6 +85,9 @@ int RESTROOM_INCREASE_RATE = 10;
 int HUNGER_LIMIT = 100;
 int REST_LIMIT = 100;
 
+void gp(struct patientStruct p);
+
+void afterGP(struct patientStruct p);
 
 void sleepByMiliseconds(int t) {
     //sleep(t / 1000);
@@ -118,20 +123,47 @@ void hungerAndRestOperations(struct patientStruct p) {
         sem_post(&semCafe);
         p.hungerMeter = 1;
     }
+    printf("patient%d has left hungerAndRestOperations\n", p.id);
 }
 
-void gp(struct patientStruct p){
-    //GP
-    sem_wait(&semGP);
-    printf("patient%d entered to GP\n",p.id);
-    sleepByMiliseconds(randnum(GP_TIME));
-    sem_post(&semGP);
-    hungerAndRestOperations(p);
-}
 
-void surgery(struct patientStruct p){
+void surgery(struct patientStruct p) {
     //todo there can be deadlocks
+    printf("patient%d has arrived to surgery\n", p.id);
+    sem_wait(&semOR);
+    int nurseCountForThisOperation = randnum(NURSE_LIMIT);
+    int surgeonCountForThisOperation = randnum(SURGEON_LIMIT);
 
+    pthread_mutex_lock(&nurseLock);//taking nurses
+
+    for (int i = 0; i < nurseCountForThisOperation; ++i) {
+        sem_wait(&semNurse);
+    }
+    pthread_mutex_unlock(&nurseLock);//we took enough nurses
+    pthread_mutex_lock(&surgeonLock);//taking the surgeons
+    for (int i = 0; i < surgeonCountForThisOperation; ++i) {
+        sem_wait(&semSurgeon);
+    }
+    pthread_mutex_unlock(&surgeonLock);//we took enough surgeons
+
+    //here the deadlock possibility ends, so we are not limiting our whole method with mutexes.
+    //other threads can take nurses/surgeons while other surgery operations happening, since they(operations) already took them(stuffs).
+
+    printf("patient%d is in surgery with %d surgeons and %d nurses\n", p.id, surgeonCountForThisOperation,
+           nurseCountForThisOperation);
+    sleepByMiliseconds(randnum(SURGERY_TIME));
+    int cost = SURGERY_OR_COST + (surgeonCountForThisOperation * SURGERY_SURGEON_COST) +
+               (nurseCountForThisOperation * SURGERY_NURSE_COST);
+    walletIncomeUpdate(cost);
+    sem_post(&semOR);
+    for (int i = 0; i < nurseCountForThisOperation; ++i) {
+        sem_post(&semNurse);
+    }
+    for (int i = 0; i < surgeonCountForThisOperation; ++i) {
+        sem_post(&semSurgeon);
+    }
+    printf("patient%d has exited from surgery\n", p.id);
+    gp(p);
 }
 
 void gp(struct patientStruct p) {
@@ -179,6 +211,7 @@ void afterGP(struct patientStruct p) {
         surgery(p);
     }
     hungerAndRestOperations(p);
+    printf("patient%d has left the hospital\n", p.id);
 }
 
 
