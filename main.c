@@ -86,7 +86,7 @@ int REST_LIMIT = 100;
 
 void sleepByMiliseconds(int t) {
     //sleep(t / 1000);
-    usleep(t*1000);
+    usleep(t * 1000);
 }
 
 void walletIncomeUpdate(int cost) {
@@ -100,19 +100,19 @@ void walletIncomeUpdate(int cost) {
 
 void hungerAndRestOperations(struct patientStruct p) {
     printf("patient%d has arrived to hungerAndRestOperations\n", p.id);
-//    sleepByMiliseconds(randnum(WAIT_TIME));
+    sleepByMiliseconds(randnum(WAIT_TIME));
     p.hungerMeter += randnum(HUNGER_INCREASE_RATE);
     p.restroomMeter += randnum(RESTROOM_INCREASE_RATE);
     if (p.restroomMeter >= REST_LIMIT) {
         sem_wait(&semRestroom);
-        printf("patient%d entered to restroom\n", p.id);
+        printf("patient%d is in restroom\n", p.id);
         sleepByMiliseconds(randnum(RESTROOM_TIME));
         sem_post(&semRestroom);
         p.restroomMeter = 1;
     }
     if (p.hungerMeter >= HUNGER_LIMIT) {
         sem_wait(&semCafe);
-        printf("patient%d entered to cafe\n", p.id);
+        printf("patient%d is in cafe\n", p.id);
         sleepByMiliseconds(randnum(CAFE_TIME));
         walletIncomeUpdate(randnum(CAFE_COST));
         sem_post(&semCafe);
@@ -140,8 +140,7 @@ void gp(struct patientStruct p) {
     int val;
     sem_wait(&semGP);
     sem_getvalue(&semGP, &val);
-    printf("gp val:%d ---------------------------------------------------\n", val);
-    printf("patient%d entered to GP\n", p.id);
+    printf("patient%d is in GP\n", p.id);
     if (p.disease ==
         0) {//if disease is zero then the patient is coming to the gp for the first time so a disease should be assigned to her/him.
         p.disease = randnum(3);
@@ -150,7 +149,6 @@ void gp(struct patientStruct p) {
         p.disease = (randnum(2) - 1);
         printf("patient%d reassigned to disease%d by GP\n", p.id, p.disease);
     }
-    printf("done\n");
     sleepByMiliseconds(randnum(GP_TIME));
     sem_post(&semGP);
     hungerAndRestOperations(p);
@@ -164,14 +162,14 @@ void afterGP(struct patientStruct p) {
     //medicine
     if (p.disease == 1) {
         sem_wait(&semPharmacy);
-        printf("patient%d entered to pharmacy\n", p.id);
+        printf("patient%d is in pharmacy\n", p.id);
         sleepByMiliseconds(randnum(PHARMACY_TIME));
         sem_post(&semPharmacy);
         walletIncomeUpdate(randnum(PHARMACY_COST));
     }//blood lab
     else if (p.disease == 2) {
         sem_wait(&semBlood);
-        printf("patient%d entered to blood lab\n", p.id);
+        printf("patient%d is in blood lab\n", p.id);
         sleepByMiliseconds(randnum(BLOOD_LAB_TIME));
         sem_post(&semBlood);
         walletIncomeUpdate(BLOOD_LAB_COST);//recalculated to a static random value at main
@@ -187,11 +185,11 @@ void afterGP(struct patientStruct p) {
 void *patient(void *arg) {
     //getting and casting the patient
     struct patientStruct *p = (struct patientStruct *) arg;
-    printf("patient%d has arrived to registration office\n", p->id);
+    printf("patient%d has entered to the hospital\n", p->id);
 
     //registration
     sem_wait(&semRegistration);
-    printf("patient%d entered to registration office\n", p->id);
+    printf("patient%d is in registration office\n", p->id);
     sleepByMiliseconds(randnum(REGISTRATION_TIME));
     walletIncomeUpdate(REGISTRATION_COST);//recalculated to a static random value at main
     sem_post(&semRegistration);
@@ -203,7 +201,14 @@ void *patient(void *arg) {
 
 
 int main(void) {
+    printf("my notes:\n"
+           "- i have left some extra comment lines that helps me while iam working so you can see how i was thinking.\n"
+           "- the entered and left messages are function based because i wanted to see it while debugging. and left them as they are.\n"
+           "- if we want of course its easy to change location of a print statement.\n"
+           "- the app will start in 5 secs...");
+    sleep(5);
 
+    //I used forks while testing the app. they are not related/necessary with this app.
 //    for (int i = 0; i < 100; ++i) {
 //        fork();
 //    }
@@ -211,6 +216,7 @@ int main(void) {
 //    fork();
 //    fork();
 //    fork();
+
     //initializing srand for random number function
     srand(time(NULL));
     //usage: randnum(max int));
@@ -221,7 +227,7 @@ int main(void) {
     int bloodLabCost = randnum(BLOOD_LAB_COST);
     BLOOD_LAB_COST = bloodLabCost;
 
-    int value;
+    int value;//value for sem get
 
     //semaphore initializations
     sem_init(&semRestroom, 0, RESTROOM_SIZE);
@@ -242,7 +248,7 @@ int main(void) {
 
     //thread creations
     for (int i = 0; i < PATIENT_NUMBER; ++i) {
-        sleepByMiliseconds(randnum(WAIT_TIME));
+//        sleepByMiliseconds(randnum(WAIT_TIME));
         patients[i].id = i;
         patients[i].disease = 0;
         patients[i].hungerMeter = randnum(REST_LIMIT);
@@ -259,9 +265,11 @@ int main(void) {
         }
     }
 
-    //final value
-    sem_getvalue(&semRegistration, &value);
-    printf("\nMain thread: Final value of the semaphore registration is %d\n\n", value);
+//    //final value of registration semaphore
+//    sem_getvalue(&semRegistration, &value);
+//    printf("\nMain thread: Final value of the semaphore registration is %d\n\n", value);
+
+    printf("\nHospital wallet is: %d\n\n",HOSPITAL_WALLET);
 
     //destroy
     sem_destroy(&semRestroom);
