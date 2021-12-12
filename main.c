@@ -1,5 +1,5 @@
 //printf("my notes:\n"
-//"- i have left some extra comment lines that helps me while iam working so you can see how i was thinking.\n"
+//"- i have left some extra comment lines that helps me while iam working, so you can see how i was thinking.\n"
 //"- the entered and left messages are function based because i wanted to see it while debugging. and left them as they are.\n"
 //"- if we want of course its easy to change location of a print statement.\n"
 //"- the app will start in 5 secs...");
@@ -99,7 +99,7 @@ void gp(struct patientStruct p);
 void afterGP(struct patientStruct p);
 
 void sleepByMiliseconds(int t) {
-    //sleep(t / 1000);
+    //sleep(t / 1000);//this was causing segmentation fault sometimes. (probably it is because float number seconds sleep)
     usleep(t * 1000);
 }
 
@@ -108,13 +108,16 @@ void walletIncomeUpdate(int cost) {
     pthread_mutex_lock(&walletLock);
     HOSPITAL_WALLET += cost;
     pthread_mutex_unlock(&walletLock);
-
 }
 
 
 void hungerAndRestOperations(struct patientStruct p) {
-    printf("patient%d has arrived to hungerAndRestOperations\n", p.id);
-    sleepByMiliseconds(randnum(WAIT_TIME));
+    //in my opinion toilet is more important than hungary.
+    // so I am writing my code according to that. if I was hungary and needed to go to toilet. I would prefer toilet %100.
+
+    //I am deleting(commenting) print lines in this method because this method runs(for sem_trywait checks) for many times,
+    //so it would print too much.
+    //printf("patient%d has arrived to hungerAndRestOperations\n", p.id);
     p.hungerMeter += randnum(HUNGER_INCREASE_RATE);
     p.restroomMeter += randnum(RESTROOM_INCREASE_RATE);
     if (p.restroomMeter >= REST_LIMIT) {
@@ -122,7 +125,7 @@ void hungerAndRestOperations(struct patientStruct p) {
         printf("patient%d is in restroom\n", p.id);
         sleepByMiliseconds(randnum(RESTROOM_TIME));
         sem_post(&semRestroom);
-        p.restroomMeter = 1;
+        p.restroomMeter=1;
     }
     if (p.hungerMeter >= HUNGER_LIMIT) {
         sem_wait(&semCafe);
@@ -130,28 +133,50 @@ void hungerAndRestOperations(struct patientStruct p) {
         sleepByMiliseconds(randnum(CAFE_TIME));
         walletIncomeUpdate(randnum(CAFE_COST));
         sem_post(&semCafe);
-        p.hungerMeter = 1;
+        p.hungerMeter=1;
     }
-    printf("patient%d has left hungerAndRestOperations\n", p.id);
+    //printf("patient%d has left hungerAndRestOperations\n", p.id);
 }
 
 
 void surgery(struct patientStruct p) {
     //todo there can be deadlocks
     printf("patient%d has arrived to surgery\n", p.id);
-    sem_wait(&semOR);
+    while (1) {//take or
+        if(sem_trywait(&semOR)==0){
+            break;
+        }else{
+            hungerAndRestOperations(p);
+            sleepByMiliseconds(randnum(WAIT_TIME));
+        }
+    }
+    //select staff count for this operation
     int nurseCountForThisOperation = randnum(NURSE_LIMIT);
     int surgeonCountForThisOperation = randnum(SURGEON_LIMIT);
 
     pthread_mutex_lock(&nurseLock);//taking nurses
 
     for (int i = 0; i < nurseCountForThisOperation; ++i) {
-        sem_wait(&semNurse);
+        while (1) {
+            if(sem_trywait(&semNurse)==0){
+                break;
+            }else{
+                hungerAndRestOperations(p);
+                sleepByMiliseconds(randnum(WAIT_TIME));
+            }
+        }
     }
     pthread_mutex_unlock(&nurseLock);//we took enough nurses
     pthread_mutex_lock(&surgeonLock);//taking the surgeons
     for (int i = 0; i < surgeonCountForThisOperation; ++i) {
-        sem_wait(&semSurgeon);
+        while (1) {
+            if(sem_trywait(&semSurgeon)==0){
+                break;
+            }else{
+                hungerAndRestOperations(p);
+                sleepByMiliseconds(randnum(WAIT_TIME));
+            }
+        }
     }
     pthread_mutex_unlock(&surgeonLock);//we took enough surgeons
 
@@ -161,9 +186,13 @@ void surgery(struct patientStruct p) {
     printf("patient%d is in surgery with %d surgeons and %d nurses\n", p.id, surgeonCountForThisOperation,
            nurseCountForThisOperation);
     sleepByMiliseconds(randnum(SURGERY_TIME));
+
+    //calculate cost
     int cost = SURGERY_OR_COST + (surgeonCountForThisOperation * SURGERY_SURGEON_COST) +
                (nurseCountForThisOperation * SURGERY_NURSE_COST);
     walletIncomeUpdate(cost);
+
+    //release the staff and the room
     sem_post(&semOR);
     for (int i = 0; i < nurseCountForThisOperation; ++i) {
         sem_post(&semNurse);
@@ -171,6 +200,7 @@ void surgery(struct patientStruct p) {
     for (int i = 0; i < surgeonCountForThisOperation; ++i) {
         sem_post(&semSurgeon);
     }
+    //hungerAndRestOperations(p); //we dont write this line here because it is already written in the method that we called from.
     printf("patient%d has exited from surgery\n", p.id);
     gp(p);
 }
@@ -178,9 +208,16 @@ void surgery(struct patientStruct p) {
 void gp(struct patientStruct p) {
     //GP
     printf("patient%d has arrived to gp\n", p.id);
-    int val;
-    sem_wait(&semGP);
-    sem_getvalue(&semGP, &val);
+    //int val;
+    //sem_getvalue(&semGP, &val);
+    while (1) {
+        if(sem_trywait(&semGP)==0){
+            break;
+        }else{
+            hungerAndRestOperations(p);
+            sleepByMiliseconds(randnum(WAIT_TIME));
+        }
+    }
     printf("patient%d is in GP\n", p.id);
     if (p.disease ==
         0) {//if disease is zero then the patient is coming to the gp for the first time so a disease should be assigned to her/him.
@@ -195,21 +232,35 @@ void gp(struct patientStruct p) {
     hungerAndRestOperations(p);
     printf("patient%d has exited from gp\n", p.id);
     afterGP(p);
-
 }
 
 void afterGP(struct patientStruct p) {
     printf("patient%d has arrived to afterGP\n", p.id);
+    //since this is an if else if statement i wrote the hunger and restroom checks at the bottom.
     //medicine
     if (p.disease == 1) {
-        sem_wait(&semPharmacy);
+        while (1) {
+            if(sem_trywait(&semPharmacy)==0){
+                break;
+            }else{
+                hungerAndRestOperations(p);
+                sleepByMiliseconds(randnum(WAIT_TIME));
+            }
+        }
         printf("patient%d is in pharmacy\n", p.id);
         sleepByMiliseconds(randnum(PHARMACY_TIME));
         sem_post(&semPharmacy);
         walletIncomeUpdate(randnum(PHARMACY_COST));
     }//blood lab
     else if (p.disease == 2) {
-        sem_wait(&semBlood);
+        while (1) {
+            if(sem_trywait(&semBlood)==0){
+                break;
+            }else{
+                hungerAndRestOperations(p);
+                sleepByMiliseconds(randnum(WAIT_TIME));
+            }
+        }
         printf("patient%d is in blood lab\n", p.id);
         sleepByMiliseconds(randnum(BLOOD_LAB_TIME));
         sem_post(&semBlood);
@@ -230,13 +281,24 @@ void *patient(void *arg) {
     printf("patient%d has entered to the hospital\n", p->id);
 
     //registration
-    sem_wait(&semRegistration);
+    //sem_wait(&semRegistration);
+
+    while (1) {
+        if(sem_trywait(&semRegistration)==0){//if we take the semaphore then break so operations can be done.
+            break;
+        }else{// if we didn't take the semaphore we will try again after time and check for basic needs.
+            hungerAndRestOperations(*p);
+            sleepByMiliseconds(randnum(WAIT_TIME));
+        }
+    }
     printf("patient%d is in registration office\n", p->id);
     sleepByMiliseconds(randnum(REGISTRATION_TIME));
     walletIncomeUpdate(REGISTRATION_COST);//recalculated to a static random value at main
     sem_post(&semRegistration);
-    hungerAndRestOperations(*p);
-    printf("patient%d has exited to registration office\n", p->id);
+    hungerAndRestOperations(*p);//think food and toilet after leaving the room of doctor/registering/smt/smt...
+    //u shouldn't leave the room while you are in there. This would be disrespectful.
+    //so I post the semaphore and then call the hunger things...
+    printf("patient%d has exited from registration office\n", p->id);
     gp(*p);
 
 }
@@ -305,7 +367,7 @@ int main(void) {
 //    sem_getvalue(&semRegistration, &value);
 //    printf("\nMain thread: Final value of the semaphore registration is %d\n\n", value);
 
-    printf("\nHospital wallet is: %d\n\n",HOSPITAL_WALLET);
+    printf("\nHospital wallet is: %d\n\n", HOSPITAL_WALLET);
 
     //destroy
     sem_destroy(&semRestroom);
